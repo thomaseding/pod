@@ -2,6 +2,11 @@
 
 var Pod = (function () {
 
+	var returnThis = function () {
+		return this;
+	};
+
+
 	var AddressedMemory = function (buffer, offset) {
 		this._buffer = buffer;
 		this._offset = offset;
@@ -15,7 +20,7 @@ var Pod = (function () {
 		return new DataView(this._buffer, this._offset + offset);
 	};
 
-	AddressedMemory.prototype.atOffset = function (offset) {
+	AddressedMemory.prototype.offsetBy = function (offset) {
 		return new AddressedMemory(buffer, this._offset + offset);
 	};
 
@@ -31,31 +36,57 @@ var Pod = (function () {
 
 	var NativeType = function (name, sizeof) {
 		Type.call(this, name, sizeof);
-		this.viewGet = "get" + name;
-		this.viewSet = "set" + name;
+
+		this._viewGet = "get" + name;
+		this._viewSet = "set" + name;
+
+		this.view = function (memory) {
+			var type = this;
+			var view = memory.view(0);
+
+			return {
+				get: function () {
+					return view[type._viewGet](0);
+				},
+				set: function (value) {
+					view[type._viewSet](0, value);
+				},
+			};
+		};
 	};
 
 	NativeType.prototype = new Type();
 	NativeType.prototype.constructor = NativeType;
+
+
+	var AggrogateType = function (clazz, name, sizeof) {
+		Type.call(this, name, sizeof);
+		this._class = clazz;
+	};
+
+	AggrogateType.prototype = new Type();
+	AggrogateType.prototype.constructor = AggrogateType;
+
+	AggrogateType.prototype.view = function (memory) {
+		return new this._class(memory);
+	};
 	
 
 	var StructType = function (clazz, name, sizeof) {
-		Type.call(this, name, sizeof);
-		this.clazz = clazz;
+		AggrogateType.call(this, clazz, name, sizeof);
 	};
 
-	StructType.prototype = new Type();
+	StructType.prototype = new AggrogateType();
 	StructType.prototype.constructor = StructType;
 	
 
 	var ListType = function (clazz, elemType, count) {
 		var name = elemType.name + "_" + (count < 0 ? "Z" : count);
 		var sizeof = elemType.sizeof * count;
-		Type.call(this, name, sizeof);
-		this.clazz = clazz;
+		AggrogateType.call(this, clazz, name, sizeof);
 	};
 
-	ListType.prototype = new Type();
+	ListType.prototype = new AggrogateType();
 	ListType.prototype.constructor = ListType;
 
 
@@ -65,18 +96,32 @@ var Pod = (function () {
 	};
 
 
+	var reservedMemberNames = {
+		"sizeof": null,
+		"type": null,
+		"memberNames": null,
+		"view": null,
+		"get": null,
+		"set": null,
+	};
+
+
 	var StructInfo = function (memberNameToType) {
 		var offset = 0;
-		var memberName = Object.keys(obj);
+		var memberNames = Object.keys(memberNameToType);
 
 		for (var i = 0; i < memberNames.length; ++i) {
 			var memberName = memberNames[i];
+			if (reservedMemberNames.hasOwnProperty(memberName)) {
+				throw Error();
+			}
+
 			var type = memberNameToType[memberName];
 			if (!(type instanceof Type) || type.sizeof < 0) {
 				throw Error();
 			}
 
-			this[memberName] = new Member(offset, type.name);
+			this[memberName] = new Member(offset, type);
 			offset += type.sizeof;
 		}
 
@@ -109,10 +154,13 @@ var Pod = (function () {
 			throw Error();
 		}
 
+		var sizeof = ref1.type.sizeof;
+		if (sizeof < 0) {
+			throw Error();
+		}
+
 		var bytes1 = this.rawBytes(ref1);
 		var bytes2 = this.rawBytes(ref2);
-
-		var sizeof = ref1.type.sizeof;
 
 		for (var i = 0; i < sizeof; ++i) {
 			if (bytes1[i] !== bytes2[i]) {
@@ -127,20 +175,17 @@ var Pod = (function () {
 			throw Error();
 		}
 
+		var sizeof = dest.type.sizeof;
+		if (sizeof < 0) {
+			throw Error();
+		}
+
 		var bytes1 = this.rawBytes(ref1);
 		var bytes2 = this.rawBytes(ref2);
-
-		var sizeof = dest.type.sizeof;
 
 		for (var i = 0; i < sizeof; ++i) {
 			dest[i] = source[i]; // XXX: Might not be correct due to endianess. May need to manually walk with DataView.
 		}
-	};
-
-
-	var reservedMemberNames = {
-		"type": null,
-		"memberNames": null,
 	};
 
 
@@ -151,7 +196,7 @@ var Pod = (function () {
 			this._memory = memory;
 		};
 
-		var type = new StructType(Reference, structInfo.sizeof, name);
+		var type = new StructType(Reference, name, structInfo.sizeof);
 
 		var memberNames = Object.keys(structInfo);
 
@@ -161,7 +206,7 @@ var Pod = (function () {
 		for (var i = 0; i < memberNames.length; ++i) {
 			var memberName = memberNames[i];
 			if (reservedMemberNames.hasOwnProperty(memberName)) {
-				throw Error();
+				continue;
 			}
 
 			var member = structInfo[memberName];
@@ -169,23 +214,15 @@ var Pod = (function () {
 			if (member.type.constructor === NativeType) {
 				Reference.prototype[memberName] = (function (member) {
 					return function () {
-						var view = this._memory.view(member.offset);
-						return {
-							get: function () {
-								return view[member.type.viewGet]();
-							},
-							set: function (value) {
-								view[member.type.viewSet](value);
-							},
-						};
+						return member.type.view(this._memory.offsetBy(member.offset));
 					};
 				})(member);
 			}
 			else if (member.type.constructor === StructType || member.type.constructor === ListType) {
 				Reference.prototype[memberName] = (function (member) {
 					return function () {
-						var memory = this._memory.atOffset(member.offset);
-						return new member.type.clazz(memory);
+						var memory = this._memory.offsetBy(member.offset);
+						return member.type.view(memory);
 					};
 				})(member);
 			}
@@ -193,6 +230,12 @@ var Pod = (function () {
 				throw Error();
 			}
 		}
+
+		Reference.prototype.get = returnThis;
+
+		Reference.prototype.set = function (other) {
+			Module.assign(this, other);
+		};
 
 		return type;
 	};
@@ -219,11 +262,11 @@ var Pod = (function () {
 				return {
 					get: function () {
 						var offset = index * elemType.sizeof;
-						return view[elemType.viewGet]();
+						return view[elemType._viewGet]();
 					},
 					set: function (value) {
 						var offset = index * elemType.sizeof;
-						view[elemType.viewSet](value);
+						view[elemType._viewSet](value);
 					},
 				};
 			};
@@ -235,13 +278,19 @@ var Pod = (function () {
 			}
 			Reference.prototype.at = function (index) {
 				var offset = elemType.sizeof * index;
-				var elemMemory = this._memory.atOffset(index);
-				return new elemType.clazz(elemMemory);
+				var elemMemory = this._memory.offsetBy(index);
+				return elemType.view(elemMemory);
 			};
 		}
 		else {
 			throw Error();
 		}
+
+		Reference.prototype.get = returnThis;
+
+		Reference.prototype.set = function (other) {
+			Module.assign(this, other);
+		};
 
 		return type;
 	};
