@@ -25,17 +25,16 @@ var Pod = (function () {
 	};
 
 
-	var Type = function (name, sizeof) {
+	var Type = function (sizeof) {
 		if (sizeof < 0) {
 			sizeof = -1;
 		}
 		this.sizeof = sizeof;
-		this.name = name;
 	};
 
 
 	var NativeType = function (name, sizeof) {
-		Type.call(this, name, sizeof);
+		Type.call(this, sizeof);
 
 		this._viewGet = "get" + name;
 		this._viewSet = "set" + name;
@@ -59,8 +58,8 @@ var Pod = (function () {
 	NativeType.prototype.constructor = NativeType;
 
 
-	var AggrogateType = function (clazz, name, sizeof) {
-		Type.call(this, name, sizeof);
+	var AggrogateType = function (clazz, sizeof) {
+		Type.call(this, sizeof);
 		this._class = clazz;
 	};
 
@@ -72,8 +71,8 @@ var Pod = (function () {
 	};
 	
 
-	var StructType = function (clazz, name, sizeof) {
-		AggrogateType.call(this, clazz, name, sizeof);
+	var StructType = function (clazz, sizeof) {
+		AggrogateType.call(this, clazz, sizeof);
 	};
 
 	StructType.prototype = new AggrogateType();
@@ -81,9 +80,8 @@ var Pod = (function () {
 	
 
 	var ListType = function (clazz, elemType, count) {
-		var name = elemType.name + "_" + (count < 0 ? "Z" : count);
 		var sizeof = elemType.sizeof * count;
-		AggrogateType.call(this, clazz, name, sizeof);
+		AggrogateType.call(this, clazz, sizeof);
 	};
 
 	ListType.prototype = new AggrogateType();
@@ -189,14 +187,14 @@ var Pod = (function () {
 	};
 
 
-	Module.defineStruct = function (name, memberNameToType) {
+	Module.defineStruct = function (memberNameToType) {
 		var structInfo = new StructInfo(memberNameToType);
 
 		var Reference = function (memory) {
 			this._memory = memory;
 		};
 
-		var type = new StructType(Reference, name, structInfo.sizeof);
+		var type = new StructType(Reference, structInfo.sizeof);
 
 		var memberNames = Object.keys(structInfo);
 

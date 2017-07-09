@@ -1,13 +1,13 @@
 
 
-var Node = Pod.defineStruct("Node", {
+var Node = Pod.defineStruct({
 	asciiChar: Pod.Uint8,
 	parentPtr: Pod.Uint32,
 	kidCapacity: Pod.Uint8,
 	kids: Pod.Uint32,
 });
 
-var NodePair = Pod.defineStruct("NodePair", {
+var NodePair = Pod.defineStruct({
 	first: Node,
 	second: Node,
 });
