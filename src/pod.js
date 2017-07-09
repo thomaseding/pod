@@ -84,27 +84,27 @@ var Pod = (function () {
 	};
 
 
-	var Modeule = {};
+	var Module = {};
 
-	Modeule.AddressedMemory = AddressedMemory;
+	Module.AddressedMemory = AddressedMemory;
 
-	Modeule.Int8 = new NativeType("Int8", 1);
-	Modeule.Int16 = new NativeType("Int16", 2);
-	Modeule.Int32 = new NativeType("Int32", 4);
+	Module.Int8 = new NativeType("Int8", 1);
+	Module.Int16 = new NativeType("Int16", 2);
+	Module.Int32 = new NativeType("Int32", 4);
 
-	Modeule.Uint8 = new NativeType("Uint8", 1);
-	Modeule.Uint16 = new NativeType("Uint16", 2);
-	Modeule.Uint32 = new NativeType("Uint32", 4);
+	Module.Uint8 = new NativeType("Uint8", 1);
+	Module.Uint16 = new NativeType("Uint16", 2);
+	Module.Uint32 = new NativeType("Uint32", 4);
 
-	Modeule.Float32 = new NativeType("Float32", 4);
-	Modeule.Float64 = new NativeType("Float64", 8);
+	Module.Float32 = new NativeType("Float32", 4);
+	Module.Float64 = new NativeType("Float64", 8);
 
 
-	Modeule.rawBytes = function (ref) {
+	Module.rawBytes = function (ref) {
 		return ref._memory.bytes(ref.type.sizeof);
 	};
 
-	Modeule.equals = function (ref1, ref2) {
+	Module.equals = function (ref1, ref2) {
 		if (ref1.type !== ref2.type) {
 			throw Error();
 		}
@@ -122,7 +122,7 @@ var Pod = (function () {
 		return true;
 	};
 
-	Modeule.assign = function (dest, source) {
+	Module.assign = function (dest, source) {
 		if (dest.type !== source.type) {
 			throw Error();
 		}
@@ -138,7 +138,7 @@ var Pod = (function () {
 	};
 
 
-	Modeule.defineStruct = function (name, memberNameToType) {
+	Module.defineStruct = function (name, memberNameToType) {
 		var structInfo = new StructInfo(memberNameToType);
 
 		var Reference = function (memory) {
@@ -188,7 +188,7 @@ var Pod = (function () {
 	};
 
 
-	Modeule.defineList = function (elemType, compileTimeCount) {
+	Module.defineList = function (elemType, compileTimeCount) {
 		if (compileTimeCount === undefined) {
 			compileTimeCount = -1;
 		}
@@ -237,7 +237,7 @@ var Pod = (function () {
 	};
 
 
-	return Modeule;
+	return Module;
 })();
 
 
