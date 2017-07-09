@@ -138,6 +138,12 @@ var Pod = (function () {
 	};
 
 
+	var reservedMemberNames = {
+		"type": null,
+		"memberNames": null,
+	};
+
+
 	Module.defineStruct = function (name, memberNameToType) {
 		var structInfo = new StructInfo(memberNameToType);
 
@@ -154,6 +160,10 @@ var Pod = (function () {
 
 		for (var i = 0; i < memberNames.length; ++i) {
 			var memberName = memberNames[i];
+			if (reservedMemberNames.hasOwnProperty(memberName)) {
+				throw Error();
+			}
+
 			var member = structInfo[memberName];
 
 			if (member.type.constructor === NativeType) {
