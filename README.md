@@ -4,7 +4,7 @@
 
 #### Example Usage.
 
-```
+```js
 var Node = Pod.defineStruct({
 	asciiChar: Pod.Uint8,
 	parentPtr: Pod.Uint32,
