@@ -178,11 +178,11 @@ var Pod = (function () {
 			throw Error();
 		}
 
-		var bytes1 = this.rawBytes(ref1);
-		var bytes2 = this.rawBytes(ref2);
+		var dBytes = this.rawBytes(dest);
+		var sBytes = this.rawBytes(source);
 
 		for (var i = 0; i < sizeof; ++i) {
-			dest[i] = source[i]; // XXX: Might not be correct due to endianess. May need to manually walk with DataView.
+			dBytes[i] = sBytes[i]; // XXX: Might not be correct due to endianess. May need to manually walk with DataView.
 		}
 	};
 
