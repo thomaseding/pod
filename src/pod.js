@@ -251,6 +251,8 @@ var Pod = (function () {
 
 	var Module = {};
 
+	Module.NamedType = NamedType;
+
 	Module.AddressedMemory = AddressedMemory;
 
 	Module.Int8 = new NativeType("Int8", 1);
@@ -269,9 +271,18 @@ var Pod = (function () {
 	Module.Bool = Bools[0];
 
 
-	Module.rawBytes = function (ref) {
-		return ref._memory.bytes(ref.type.sizeof);
+	Module.rawBytes = function (view) {
+		return view._memory.bytes(view.type.sizeof);
 	};
+
+	/*Module.zeroFill = function (view) {
+		throw Error(); // XXX: Below implementation can write past view for Bool members.
+
+		var bytes = Module.rawBytes(view);
+		for (var i = 0; i < bytes.length; ++i) {
+			bytes[i] = 0;
+		}
+	};*/
 
 	Module.equals = function (ref1, ref2) {
 		if (ref1.type !== ref2.type) {
