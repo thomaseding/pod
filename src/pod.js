@@ -38,11 +38,11 @@ var Pod = (function () {
 		this.sizeof = sizeof;
 	};
 
-	Type.prototype.as = function (memberName) {
-		if (typeof memberName !== "string") {
+	Type.prototype.as = function (name) {
+		if (typeof name !== "string") {
 			throw Error();
 		}
-		return new NamedType(name, type);
+		return new NamedType(name, this);
 	};
 
 
@@ -114,6 +114,7 @@ var Pod = (function () {
 
 
 	var reservedMemberNames = {
+		"": null,
 		as: null,
 		get: null,
 		memberNames: null,
@@ -232,12 +233,12 @@ var Pod = (function () {
 				var member = structInfo[memberName];
 
 				if (member.type.constructor === NativeType) {
-					View.prototype[memberName] = return function () {
+					View.prototype[memberName] = function () {
 						return member.type.view(this._memory.offsetBy(member.offset));
 					};
 				}
 				else if (member.type.constructor === StructType || member.type.constructor === ListType) {
-					View.prototype[memberName] = return function () {
+					View.prototype[memberName] = function () {
 						var memory = this._memory.offsetBy(member.offset);
 						return member.type.view(memory);
 					};
