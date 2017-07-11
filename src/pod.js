@@ -13,7 +13,7 @@ var Pod = (function () {
 	};
 
 	AddressedMemory.prototype.bytes = function (sizeof) {
-		return new Uint8Array(this._buffer, this._offset + sizeof);
+		return new Uint8Array(this._buffer, this._offset);
 	};
 
 	AddressedMemory.prototype.view = function (offset) {
@@ -71,38 +71,6 @@ var Pod = (function () {
 	NativeType.prototype.constructor = NativeType;
 
 
-
-	var Bool8Type = function () {
-		Type.call(this, 1);
-
-		this.view = function (memory) {
-			var type = this;
-			var view = memory.view(0);
-
-			return {
-				at: function (bitIndex) {
-					return {
-						_mask: 1 << bitIndex,
-						get: function () {
-							return (view.getUint8(0) & this._mask) !== 0;
-						},
-						set: function (value) {
-							var bits = view.getUint8(0);
-							if (value) {
-								bits |= this._mask;
-							}
-							else {
-								bits &= this._mask;
-							}
-							view.setUint8(0, bits);
-						},
-					};
-				},
-			};
-		};
-	};
-
-
 	var AggrogateType = function (clazz, sizeof) {
 		Type.call(this, sizeof);
 		this._class = clazz;
@@ -139,6 +107,82 @@ var Pod = (function () {
 	ListType.prototype.constructor = ListType;
 
 
+	var Bit8Type = function () {
+		Type.call(this, 1);
+
+		this.view = function (memory) {
+			var view = memory.view(0);
+
+			return {
+				at: function (bitIndex) {
+					return {
+						_mask: 1 << bitIndex,
+						get: function () {
+							return (view.getUint8(0) & this._mask) !== 0;
+						},
+						set: function (value) {
+							var bits = view.getUint8(0);
+							if (value) {
+								bits |= this._mask;
+							}
+							else {
+								bits &= this._mask;
+							}
+							view.setUint8(0, bits);
+						},
+					};
+				},
+			};
+		};
+	};
+
+	Bit8Type.prototype = new Type();
+	Bit8Type.prototype.constructor = Bit8Type;
+
+
+	var BoolType = function (bitIndex) {
+		Type.call(this, -1);
+
+		this._mask = 1 << bitIndex;
+
+		this.view = function (memory) {
+			var type = this;
+			var view = memory.view(0);
+
+			return {
+				get: function () {
+					return (view.getUint8(0) & type._mask) !== 0;
+				},
+				set: function (value) {
+					var bits = view.getUint8(0);
+					if (value) {
+						bits |= type._mask;
+					}
+					else {
+						bits &= type._mask;
+					}
+					view.setUint8(0, bits);
+				},
+			};
+		};
+	};
+
+	BoolType.prototype = new Type();
+	BoolType.prototype.constructor = BoolType;
+
+
+	var Bools = [
+		new BoolType(0),
+		new BoolType(1),
+		new BoolType(2),
+		new BoolType(3),
+		new BoolType(4),
+		new BoolType(5),
+		new BoolType(6),
+		new BoolType(7),
+	];
+
+
 	var Member = function (offset, type) {
 		this.offset = offset;
 		this.type = type;
@@ -160,6 +204,8 @@ var Pod = (function () {
 	var StructInfo = function (namedTypes) {
 		var offset = 0;
 
+		var currBoolIndex = 0;
+
 		for (var i = 0; i < namedTypes.length; ++i) {
 			var namedType = namedTypes[i];
 
@@ -169,14 +215,36 @@ var Pod = (function () {
 			}
 
 			var type = namedType.type;
-			if (!(type instanceof Type) || type.sizeof < 0) {
+			if (!(type instanceof Type)) {
 				throw Error();
 			}
 
-			this[memberName] = new Member(offset, type);
-			offset += type.sizeof;
+			if (type instanceof BoolType) {
+				if (currBoolIndex === 8) {
+					currBoolIndex = 0;
+					++offset;
+				}
+				var type = Bools[currBoolIndex];
+				this[memberName] = new Member(offset, type);
+				++currBoolIndex;
+			}
+			else {
+				if (type.sizeof < 0) {
+					throw Error();
+				}
+
+				if (currBoolIndex > 0) {
+					currBoolIndex = 0;
+					++offset;
+				}
+				this[memberName] = new Member(offset, type);
+				offset += type.sizeof;
+			}
 		}
 
+		if (currBoolIndex > 0) {
+			++offset;
+		}
 		this.sizeof = offset;
 	};
 
@@ -196,7 +264,9 @@ var Pod = (function () {
 	Module.Float32 = new NativeType("Float32", 4);
 	Module.Float64 = new NativeType("Float64", 8);
 
-	Module.Bool8 = new Bool8Type();
+	Module.Bit8 = new Bit8Type();
+
+	Module.Bool = Bools[0];
 
 
 	Module.rawBytes = function (ref) {
@@ -288,6 +358,10 @@ var Pod = (function () {
 
 
 	Module.defineList = function (elemType, compileTimeCount) {
+		if (elemType instanceof BoolType) {
+			throw Error(); // not yet supported
+		}
+
 		if (compileTimeCount === undefined) {
 			compileTimeCount = -1;
 		}
