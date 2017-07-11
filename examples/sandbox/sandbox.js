@@ -1,16 +1,16 @@
 
 
-var Node = Pod.defineStruct({
-	asciiChar: Pod.Uint8,
-	parentPtr: Pod.Uint32,
-	kidCapacity: Pod.Uint8,
-	kids: Pod.Uint32,
-});
+var Node = Pod.defineStruct([
+	Pod.Uint8.as("asciiChar"),
+	Pod.Uint32.as("parentPtr"),
+	Pod.Uint8.as("kidCapacity"),
+	Pod.Uint32.as("kidsPtr"),
+]);
 
-var NodePair = Pod.defineStruct({
-	first: Node,
-	second: Node,
-});
+var NodePair = Pod.defineStruct([
+	Node.as("first"),
+	Node.as("second"),
+]);
 
 
 var buffer = new ArrayBuffer(666);

@@ -25,11 +25,24 @@ var Pod = (function () {
 	};
 
 
+	var NamedType = function (name, type) {
+		this.name = name;
+		this.type = type;
+	};
+
+
 	var Type = function (sizeof) {
 		if (sizeof < 0) {
 			sizeof = -1;
 		}
 		this.sizeof = sizeof;
+	};
+
+	Type.prototype.as = function (memberName) {
+		if (typeof memberName !== "string") {
+			throw Error();
+		}
+		return new NamedType(name, type);
 	};
 
 
@@ -95,26 +108,28 @@ var Pod = (function () {
 
 
 	var reservedMemberNames = {
-		"sizeof": null,
-		"type": null,
-		"memberNames": null,
-		"view": null,
-		"get": null,
-		"set": null,
+		as: null,
+		get: null,
+		memberNames: null,
+		set: null,
+		sizeof: null,
+		type: null,
+		view: null,
 	};
 
 
-	var StructInfo = function (memberNameToType) {
+	var StructInfo = function (namedTypes) {
 		var offset = 0;
-		var memberNames = Object.keys(memberNameToType);
 
-		for (var i = 0; i < memberNames.length; ++i) {
-			var memberName = memberNames[i];
+		for (var i = 0; i < namedTypes.length; ++i) {
+			var namedType = namedTypes[i];
+
+			var memberName = namedType.name;
 			if (reservedMemberNames.hasOwnProperty(memberName)) {
 				throw Error();
 			}
 
-			var type = memberNameToType[memberName];
+			var type = namedType.type;
 			if (!(type instanceof Type) || type.sizeof < 0) {
 				throw Error();
 			}
@@ -187,19 +202,19 @@ var Pod = (function () {
 	};
 
 
-	Module.defineStruct = function (memberNameToType) {
-		var structInfo = new StructInfo(memberNameToType);
+	Module.defineStruct = function (namedTypes) {
+		var structInfo = new StructInfo(namedTypes);
 
-		var Reference = function (memory) {
+		var View = function (memory) {
 			this._memory = memory;
 		};
 
-		var type = new StructType(Reference, structInfo.sizeof);
+		var type = new StructType(View, structInfo.sizeof);
 
 		var memberNames = Object.keys(structInfo);
 
-		Reference.prototype.type = type;
-		Reference.prototype.memberNames = memberNames;
+		View.prototype.type = type;
+		View.prototype.memberNames = memberNames;
 
 		for (var i = 0; i < memberNames.length; ++i) {
 			var memberName = memberNames[i];
@@ -207,31 +222,29 @@ var Pod = (function () {
 				continue;
 			}
 
-			var member = structInfo[memberName];
+			(function () {
+				var member = structInfo[memberName];
 
-			if (member.type.constructor === NativeType) {
-				Reference.prototype[memberName] = (function (member) {
-					return function () {
+				if (member.type.constructor === NativeType) {
+					View.prototype[memberName] = return function () {
 						return member.type.view(this._memory.offsetBy(member.offset));
 					};
-				})(member);
-			}
-			else if (member.type.constructor === StructType || member.type.constructor === ListType) {
-				Reference.prototype[memberName] = (function (member) {
-					return function () {
+				}
+				else if (member.type.constructor === StructType || member.type.constructor === ListType) {
+					View.prototype[memberName] = return function () {
 						var memory = this._memory.offsetBy(member.offset);
 						return member.type.view(memory);
 					};
-				})(member);
-			}
-			else {
-				throw Error();
-			}
+				}
+				else {
+					throw Error();
+				}
+			})();
 		}
 
-		Reference.prototype.get = returnThis;
+		View.prototype.get = returnThis;
 
-		Reference.prototype.set = function (other) {
+		View.prototype.set = function (other) {
 			Module.assign(this, other);
 		};
 
@@ -244,17 +257,17 @@ var Pod = (function () {
 			compileTimeCount = -1;
 		}
 		
-		var Reference = function (memory) {
+		var View = function (memory) {
 			this._memory = memory;
 		};
 
-		var type = new ListType(Reference, elemType, compileTimeCount);
+		var type = new ListType(View, elemType, compileTimeCount);
 
-		Reference.prototype.type = type;
-		Reference.prototype.length = compileTimeCount;
+		View.prototype.type = type;
+		View.prototype.length = compileTimeCount;
 
 		if (elemType.constructor === NativeType) {
-			Reference.prototype.at = function (index) {
+			View.prototype.at = function (index) {
 				var offset = elemType.sizeof * index;
 				var view = this._memory.view(offset);
 				return {
@@ -274,7 +287,7 @@ var Pod = (function () {
 			if (elemType.sizeof < 0) {
 				throw Error();
 			}
-			Reference.prototype.at = function (index) {
+			View.prototype.at = function (index) {
 				var offset = elemType.sizeof * index;
 				var elemMemory = this._memory.offsetBy(index);
 				return elemType.view(elemMemory);
@@ -284,9 +297,9 @@ var Pod = (function () {
 			throw Error();
 		}
 
-		Reference.prototype.get = returnThis;
+		View.prototype.get = returnThis;
 
-		Reference.prototype.set = function (other) {
+		View.prototype.set = function (other) {
 			Module.assign(this, other);
 		};
 
