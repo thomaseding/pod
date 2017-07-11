@@ -85,6 +85,9 @@ var Pod = (function () {
 	
 
 	var StructType = function (clazz, sizeof) {
+		if (sizeof <= 0) {
+			throw Error();
+		}
 		AggrogateType.call(this, clazz, sizeof);
 	};
 
@@ -93,6 +96,9 @@ var Pod = (function () {
 	
 
 	var ListType = function (clazz, elemType, count) {
+		if (elemType.sizeof <= 0 || count <= 0) {
+			throw Error();
+		}
 		var sizeof = elemType.sizeof * count;
 		AggrogateType.call(this, clazz, sizeof);
 	};
