@@ -15,6 +15,11 @@ declare module Pod {
 	//}
 	type View = any;
 
+	interface TypedView<T> {
+		get(): T;
+		set(value: T)
+	};
+
 	interface NamedType { }
 
 	interface Type {
@@ -23,18 +28,22 @@ declare module Pod {
 		sizeof: number;
 	}
 
-	var Int8: Type;
-	var Int16: Type;
-	var Int32: Type;
+	interface BuiltinType<T> extends Type {
+		view(memory: AddressedMemory): TypedView<T>;
+	}
 
-	var Uint8: Type;
-	var Uint16: Type;
-	var Uint32: Type;
+	var Int8: BuiltinType<number>;
+	var Int16: BuiltinType<number>;
+	var Int32: BuiltinType<number>;
 
-	var Float32: Type;
-	var Float64: Type;
+	var Uint8: BuiltinType<number>;
+	var Uint16: BuiltinType<number>;
+	var Uint32: BuiltinType<number>;
 
-	var Bool: Type;
+	var Float32: BuiltinType<number>;
+	var Float64: BuiltinType<number>;
+
+	var Bool: BuiltinType<boolean>;
 
 	//function zeroFill(view: View);
 	function rawBytes(view: View);
