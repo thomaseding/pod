@@ -13,7 +13,7 @@ var Pod = (function () {
 	};
 
 	AddressedMemory.prototype.bytes = function (sizeof) {
-		return new Uint8Array(this._buffer, this._offset);
+		return new Uint8Array(this._buffer, this._offset, this._offset + sizeof);
 	};
 
 	AddressedMemory.prototype.view = function (offset) {
