@@ -71,6 +71,38 @@ var Pod = (function () {
 	NativeType.prototype.constructor = NativeType;
 
 
+
+	var Bool8Type = function () {
+		Type.call(this, 1);
+
+		this.view = function (memory) {
+			var type = this;
+			var view = memory.view(0);
+
+			return {
+				at: function (bitIndex) {
+					return {
+						_mask: 1 << bitIndex,
+						get: function () {
+							return (view.getUint8(0) & this._mask) !== 0;
+						},
+						set: function (value) {
+							var bits = view.getUint8(0);
+							if (value) {
+								bits |= this._mask;
+							}
+							else {
+								bits &= this._mask;
+							}
+							view.setUint8(0, bits);
+						},
+					};
+				},
+			};
+		};
+	};
+
+
 	var AggrogateType = function (clazz, sizeof) {
 		Type.call(this, sizeof);
 		this._class = clazz;
@@ -164,6 +196,8 @@ var Pod = (function () {
 	Module.Float32 = new NativeType("Float32", 4);
 	Module.Float64 = new NativeType("Float64", 8);
 
+	Module.Bool8 = new Bool8Type();
+
 
 	Module.rawBytes = function (ref) {
 		return ref._memory.bytes(ref.type.sizeof);
@@ -232,15 +266,9 @@ var Pod = (function () {
 			(function () {
 				var member = structInfo[memberName];
 
-				if (member.type.constructor === NativeType) {
+				if (member.type instanceof Type) {
 					View.prototype[memberName] = function () {
 						return member.type.view(this._memory.offsetBy(member.offset));
-					};
-				}
-				else if (member.type.constructor === StructType || member.type.constructor === ListType) {
-					View.prototype[memberName] = function () {
-						var memory = this._memory.offsetBy(member.offset);
-						return member.type.view(memory);
 					};
 				}
 				else {
