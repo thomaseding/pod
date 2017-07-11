@@ -17,7 +17,7 @@ var NodePair = Pod.defineStruct([
 	Node.as("second"),
 ]);
 
-var buffer = new ArrayBuffer(666);
+var buffer = new ArrayBuffer(NodePair.sizeof);
 var memory = new Pod.AddressedMemory(buffer, 0);
 
 var nodePair = NodePair.view(memory);
