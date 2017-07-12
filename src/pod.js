@@ -287,9 +287,12 @@ var Pod = (function () {
 			}
 		}
 
-		forceByteBoundary();
+		if (!this.isBitwise) {
+			forceByteBoundary();
+		}
 
 		this.sizeof = byteOffset;
+		this.bitwiseCount = bitOffset;
 	};
 
 
@@ -411,7 +414,7 @@ var Pod = (function () {
 			Module.assign(this, other);
 		};
 
-		var type = new StructType(View, structInfo.sizeof, structInfo.isBitwise);
+		var type = new StructType(View, structInfo.sizeof, structInfo.isBitwise, structInfo.bitwiseCount);
 		View.prototype.type = type;
 
 		return type;
