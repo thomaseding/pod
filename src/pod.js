@@ -140,7 +140,7 @@ var Pod = (function () {
 
 
 	var AggrogateType = function (viewClass, sizeof, isBitwise, bitwiseCount) {
-		if (bitwiseCount > 8) {
+		if (bitwiseCount >= 8) {
 			throw Error();
 		}
 		Type.call(this, sizeof);
