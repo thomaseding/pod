@@ -14,19 +14,21 @@ var Tristate = Pod.defineStruct([
 	}
 });
 
-var tri = Pod.allocate(Tristate);
-console.log(tri.get());
-tri.set(true);
-console.log(tri.get());
-tri.set(false);
-console.log(tri.get());
-
-
 
 var Flags = Pod.defineStruct([
 	Tristate.as("x"),
 	Tristate.as("y"),
 ]);
+
+var flags = Pod.allocate(Flags);
+var tri = flags.y();
+console.log(tri.get());
+tri.set(true);
+console.log(tri.get());
+tri.set(false);
+console.log(tri.get());
+console.log(Pod.rawBytes(flags));
+
 
 
 var Node = Pod.defineStruct([
@@ -73,7 +75,6 @@ console.log(node.bool1().get());
 console.log(node.bool8().get());
 node.bool8().set(true);
 console.log(node.bool8().get());
-
 
 console.log(Pod.rawBytes(nodePair));
 

@@ -103,7 +103,6 @@ var Pod = (function () {
 			}
 
 			var view = memory.view(0);
-			//var mask = 1 << (7 - bitOffset);
 			var mask = 1 << bitOffset;
 
 			return {
@@ -191,16 +190,10 @@ var Pod = (function () {
 	};
 
 	var reservedMemberNames = {
-		"": null,
-		as: null,
-		bitCount: null,
-		bitwiseEnabled: null,
 		get: null,
-		memberNames: null,
+		members: null,
 		set: null,
-		byteCount: null,
 		type: null,
-		view: null,
 	};
 
 
@@ -294,7 +287,7 @@ var Pod = (function () {
 			this._bitOffset = bitOffset;
 		};
 
-		View.prototype.memberNames = [];
+		View.prototype.members = [];
 
 		var bitwiseEnabled = true;
 
@@ -315,7 +308,7 @@ var Pod = (function () {
 			if (reservedMemberNames.hasOwnProperty(memberName)) {
 				throw Error();
 			}
-			View.prototype.memberNames.push(memberName);
+			View.prototype.members.push(memberName);
 
 			(function () {
 				var type = namedType.type;
