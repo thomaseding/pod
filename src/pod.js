@@ -212,70 +212,6 @@ var Pod = (function () {
 	};
 
 
-	var StructInfo = function (namedTypes) {
-		var byteOffset = 0;
-		var bitOffset = 0;
-
-		this.bitwiseEnabled = true;
-
-		var forceByteBoundary = function () {
-			if (bitOffset > 0) {
-				bitOffset = 0;
-				++byteOffset;
-			}
-		};
-
-		for (var i = 0; i < namedTypes.length; ++i) {
-			var namedType = namedTypes[i];
-
-			var memberName = namedType.name;
-			if (reservedMemberNames.hasOwnProperty(memberName)) {
-				throw Error();
-			}
-
-			var type = namedType.type;
-			if (!(type instanceof Type)) {
-				throw Error();
-			}
-
-			if (type instanceof ByteBoundaryType) {
-				throw Error(); // Probably need to make a proxy member type such as ByteBoundaryMember. (Should be idempotent.)
-				forceByteBoundary();
-				this.bitwiseEnabled = false;
-			}
-			else if (type.bitwiseEnabled()) {
-				if (type.sizeof < 0) {
-					throw Error();
-				}
-
-				this[memberName] = new Member(type);
-
-				bitOffset += type.bitwiseCount();
-				byteOffset += Math.floor(bitOffset / 8);
-				bitOffset = bitOffset % 8;
-			}
-			else {
-				if (type.sizeof < 0) {
-					throw Error();
-				}
-
-				forceByteBoundary();
-				this.bitwiseEnabled = false;
-
-				this[memberName] = new Member(type);
-				byteOffset += type.sizeof;
-			}
-		}
-
-		if (!this.bitwiseEnabled) {
-			forceByteBoundary();
-		}
-
-		this.sizeof = byteOffset;
-		this.bitwiseCount = bitOffset;
-	};
-
-
 	var Module = {};
 
 	Module.reservedMemberNames = function () {
@@ -286,7 +222,7 @@ var Pod = (function () {
 
 	Module.AddressedMemory = AddressedMemory;
 
-	Module.ByteBoundary = new NamedType("", new ByteBoundaryType());
+	Module.ByteBoundary = new NamedType("*", new ByteBoundaryType());
 
 	Module.Int8 = new NativeType("Int8", 1);
 	Module.Int16 = new NativeType("Int16", 2);
@@ -353,8 +289,6 @@ var Pod = (function () {
 
 
 	Module.defineStruct = function (namedTypes) {
-		var structInfo = new StructInfo(namedTypes);
-
 		var View = function (memory, bitOffset) {
 			if (bitOffset > 8) {
 				bitOffset -= 8;
@@ -364,8 +298,9 @@ var Pod = (function () {
 			this._bitOffset = bitOffset;
 		};
 
-		var memberNames = Object.keys(structInfo);
-		View.prototype.memberNames = memberNames;
+		View.prototype.memberNames = [];
+
+		var bitwiseEnabled = true;
 
 		var loopByteOffset = 0;
 		var loopBitOffset = 0;
@@ -377,30 +312,33 @@ var Pod = (function () {
 			}
 		};
 
-		for (var i = 0; i < memberNames.length; ++i) {
-			var memberName = memberNames[i];
+		for (var i = 0; i < namedTypes.length; ++i) {
+			var namedType = namedTypes[i];
+
+			var memberName = namedType.name;
 			if (reservedMemberNames.hasOwnProperty(memberName)) {
-				continue;
+				throw Error();
 			}
+			View.prototype.memberNames.push(memberName);
 
 			(function () {
-				var member = structInfo[memberName];
+				var type = namedType.type;
 				var localByteOffset;
 				var localBitOffset;
 
-				if (member.type instanceof Type) {
-					if (member.type.bitwiseEnabled()) {
+				if (type instanceof Type) {
+					if (type.bitwiseEnabled()) {
 						localByteOffset = loopByteOffset;
 						localBitOffset = loopBitOffset;
 
 						View.prototype[memberName] = function () {
 							var byteOffset = localByteOffset;
 							var bitOffset = this._bitOffset + localBitOffset;
-							return member.type.bitwiseView(bitOffset, this._memory.offsetBy(byteOffset));
+							return type.bitwiseView(bitOffset, this._memory.offsetBy(byteOffset));
 						};
 
-						loopByteOffset += member.type.sizeof;
-						loopBitOffset += member.type.bitwiseCount();
+						loopByteOffset += type.sizeof;
+						loopBitOffset += type.bitwiseCount();
 						if (loopBitOffset >= 8) {
 							forceByteBoundary();
 						}
@@ -412,10 +350,10 @@ var Pod = (function () {
 
 						View.prototype[memberName] = function () {
 							var byteOffset = localByteOffset;
-							return member.type.view(this._memory.offsetBy(byteOffset));
+							return type.view(this._memory.offsetBy(byteOffset));
 						};
 
-						loopByteOffset += member.type.sizeof;
+						loopByteOffset += type.sizeof;
 					}
 				}
 				else {
@@ -424,14 +362,19 @@ var Pod = (function () {
 			})();
 		}
 
+		if (!bitwiseEnabled) {
+			forceByteBoundary();
+		}
+		var sizeof = loopByteOffset;
+		var bitwiseCount = loopBitOffset;
+		var type = new StructType(View, sizeof, bitwiseEnabled, bitwiseCount);
+		View.prototype.type = type;
+
 		View.prototype.get = returnThis;
 
 		View.prototype.set = function (other) {
 			Module.assign(this, other);
 		};
-
-		var type = new StructType(View, structInfo.sizeof, structInfo.bitwiseEnabled, structInfo.bitwiseCount);
-		View.prototype.type = type;
 
 		return type;
 	};
