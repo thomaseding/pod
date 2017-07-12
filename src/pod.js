@@ -7,21 +7,21 @@ var Pod = (function () {
 	};
 
 
-	var AddressedMemory = function (buffer, offset) {
+	var AddressedMemory = function (buffer, byteOffset) {
 		this._buffer = buffer;
-		this._offset = offset;
+		this._byteOffset = byteOffset;
 	};
 
 	AddressedMemory.prototype.bytes = function (sizeof) {
-		return new Uint8Array(this._buffer, this._offset, this._offset + sizeof);
+		return new Uint8Array(this._buffer, this._byteOffset, this._byteOffset + sizeof);
 	};
 
-	AddressedMemory.prototype.view = function (offset) {
-		return new DataView(this._buffer, this._offset + offset);
+	AddressedMemory.prototype.view = function (byteOffset) {
+		return new DataView(this._buffer, this._byteOffset + byteOffset);
 	};
 
-	AddressedMemory.prototype.offsetBy = function (offset) {
-		return new AddressedMemory(buffer, this._offset + offset);
+	AddressedMemory.prototype.offsetBy = function (byteOffset) {
+		return new AddressedMemory(buffer, this._byteOffset + byteOffset);
 	};
 
 
@@ -43,6 +43,26 @@ var Pod = (function () {
 			throw Error();
 		}
 		return new NamedType(name, this);
+	};
+
+	Type.prototype._isBitwise = function () {
+		return false;
+	};
+
+	Type.prototype._bitwiseCount = function () {
+		return 0;
+	};
+
+
+	var ByteBoundaryType = function () {
+		Type.call(this, -1);
+	};
+
+	ByteBoundaryType.prototype = new Type();
+	ByteBoundaryType.prototype.constructor = ByteBoundaryType;
+
+	ByteBoundartType.prototype.view = function () {
+		throw Error();
 	};
 
 
@@ -71,104 +91,107 @@ var Pod = (function () {
 	NativeType.prototype.constructor = NativeType;
 
 
-	var AggrogateType = function (clazz, sizeof) {
+	var BoolType = function (bitIndex) {
+		Type.call(this, 0);
+
+		this._bitwiseView = function (bitOffset, memory) {
+			var byteOffset = 0;
+			var effectiveBitIndex = bitIndex + bitOffset;
+			while (effectiveBitIndex >= 8) {
+				effectiveBitIndex -= 8;
+				++byteOffset;
+			}
+
+			var view = memory.view(byteOffset);
+			var mask = 1 << effectiveBitIndex;
+
+			return {
+				get: function () {
+					return (view.getUint8(0) & mask) !== 0;
+				},
+				set: function (value) {
+					var bits = view.getUint8(0);
+					if (value) {
+						bits |= mask;
+					}
+					else {
+						bits &= mask;
+					}
+					view.setUint8(0, bits);
+				},
+			};
+		};
+
+		this.view = function (memory) {
+			return this._bitwiseView(0, memory);
+		}
+	};
+
+	BoolType.prototype = new Type();
+	BoolType.prototype.constructor = BoolType;
+	
+	BoolType.prototype._isBitwise = function () {
+		return true;
+	};
+
+	BoolType.prototype._bitwiseCount = function () {
+		return 1;
+	};
+
+
+	var AggrogateType = function (viewClass, sizeof, isBitwise, bitwiseCount) {
+		if (bitwiseCount > 8) {
+			throw Error();
+		}
 		Type.call(this, sizeof);
-		this._class = clazz;
+		this._viewClass = viewClass;
+		this._bitwise = isBitwise;
+		this._bitCount = bitwiseCount;
 	};
 
 	AggrogateType.prototype = new Type();
 	AggrogateType.prototype.constructor = AggrogateType;
 
+	AggrogateType.prototype._bitwiseView = function (bitOffset, memory) {
+		return new this._viewClass(memory, bitOffset);
+	};
+
 	AggrogateType.prototype.view = function (memory) {
-		return new this._class(memory);
+		return new this._viewClass(memory);
+	};
+
+	AggrogateType.prototype._isBitwise = function () {
+		return this._bitwise;
+	};
+
+	AggrogateType.prototype._bitwiseCount = function () {
+		return this._bitCount;
 	};
 	
 
-	var StructType = function (clazz, sizeof) {
+	var StructType = function (viewClass, sizeof, isBitwise, paddedBits) {
 		if (sizeof <= 0) {
 			throw Error();
 		}
-		AggrogateType.call(this, clazz, sizeof);
+		AggrogateType.call(this, viewClass, sizeof, isBitwise, paddedBits);
 	};
 
 	StructType.prototype = new AggrogateType();
 	StructType.prototype.constructor = StructType;
 	
 
-	var ListType = function (clazz, elemType, count) {
-		if (elemType.sizeof <= 0 || count <= 0) {
+	var ListType = function (viewClass, elemType, count) {
+		if (elemType.sizeof <= 0 || count <= 0 || elemType._bitwiseCount() > 0) {
 			throw Error();
 		}
 		var sizeof = elemType.sizeof * count;
-		AggrogateType.call(this, clazz, sizeof);
+		var isBitwise = count > 0 && elemType.isBitwise();
+		var bitwiseCount = xxx;
+		AggrogateType.call(this, viewClass, sizeof, isBitwise, bitwiseCount);
 	};
 
 	ListType.prototype = new AggrogateType();
 	ListType.prototype.constructor = ListType;
-
-
-	var Bit8Type = function () {
-		Type.call(this, 1);
-
-		this.view = function (memory) {
-			var view = memory.view(0);
-
-			return {
-				at: function (bitIndex) {
-					return {
-						_mask: 1 << bitIndex,
-						get: function () {
-							return (view.getUint8(0) & this._mask) !== 0;
-						},
-						set: function (value) {
-							var bits = view.getUint8(0);
-							if (value) {
-								bits |= this._mask;
-							}
-							else {
-								bits &= this._mask;
-							}
-							view.setUint8(0, bits);
-						},
-					};
-				},
-			};
-		};
-	};
-
-	Bit8Type.prototype = new Type();
-	Bit8Type.prototype.constructor = Bit8Type;
-
-
-	var BoolType = function (bitIndex) {
-		Type.call(this, -1);
-
-		this._mask = 1 << bitIndex;
-
-		this.view = function (memory) {
-			var type = this;
-			var view = memory.view(0);
-
-			return {
-				get: function () {
-					return (view.getUint8(0) & type._mask) !== 0;
-				},
-				set: function (value) {
-					var bits = view.getUint8(0);
-					if (value) {
-						bits |= type._mask;
-					}
-					else {
-						bits &= type._mask;
-					}
-					view.setUint8(0, bits);
-				},
-			};
-		};
-	};
-
-	BoolType.prototype = new Type();
-	BoolType.prototype.constructor = BoolType;
 
 
 	var Bools = [
@@ -183,8 +206,14 @@ var Pod = (function () {
 	];
 
 
-	var Member = function (offset, type) {
-		this.offset = offset;
+	var Member = function (byteOffset, type) {
+		this.byteOffset = byteOffset;
+		this.type = type;
+	};
+
+	var BitwiseMember = function (byteOffset, bitOffset, type) {
+		this.byteOffset = byteOffset;
+		this.bitOffset = bitOffset;
 		this.type = type;
 	};
 
@@ -202,9 +231,17 @@ var Pod = (function () {
 
 
 	var StructInfo = function (namedTypes) {
-		var offset = 0;
+		var byteOffset = 0;
+		var bitOffset = 0;
 
-		var currBoolIndex = 0;
+		this.isBitwise = true;
+
+		var forceByteBoundary = function () {
+			if (bitOffset > 0) {
+				bitOffset = 0;
+				++byteOffset;
+			}
+		};
 
 		for (var i = 0; i < namedTypes.length; ++i) {
 			var namedType = namedTypes[i];
@@ -219,33 +256,40 @@ var Pod = (function () {
 				throw Error();
 			}
 
-			if (type instanceof BoolType) {
-				if (currBoolIndex === 8) {
-					currBoolIndex = 0;
-					++offset;
+			if (type instanceof ByteBoundaryType) {
+				forceByteBoundary();
+			}
+			else if (type._isBitwise()) {
+				if (type.sizeof < 0) {
+					throw Error();
 				}
-				var type = Bools[currBoolIndex];
-				this[memberName] = new Member(offset, type);
-				++currBoolIndex;
+
+				if (type instanceof BoolType) {
+					type = Bools[bitOffset];
+				}
+				this[memberName] = new BitwiseMember(byteOffset, bitOffset, type);
+
+				bitOffset += type._bitwiseCount();
+				byteOffset += Math.floor(bitOffset / 8);
+				bitOffset = bitOffset % 8;
 			}
 			else {
 				if (type.sizeof < 0) {
 					throw Error();
 				}
 
-				if (currBoolIndex > 0) {
-					currBoolIndex = 0;
-					++offset;
-				}
-				this[memberName] = new Member(offset, type);
-				offset += type.sizeof;
+				forceByteBoundary();
+
+				this.isBitwise = false;
+
+				this[memberName] = new Member(byteOffset, type);
+				byteOffset += type.sizeof;
 			}
 		}
 
-		if (currBoolIndex > 0) {
-			++offset;
-		}
-		this.sizeof = offset;
+		forceByteBoundary();
+
+		this.sizeof = byteOffset;
 	};
 
 
@@ -254,6 +298,8 @@ var Pod = (function () {
 	Module.NamedType = NamedType;
 
 	Module.AddressedMemory = AddressedMemory;
+
+	Module.ByteBoundary = new NamedType("", new ByteBoundaryType());
 
 	Module.Int8 = new NativeType("Int8", 1);
 	Module.Int16 = new NativeType("Int16", 2);
@@ -266,8 +312,6 @@ var Pod = (function () {
 	Module.Float32 = new NativeType("Float32", 4);
 	Module.Float64 = new NativeType("Float64", 8);
 
-	Module.Bit8 = new Bit8Type();
-
 	Module.Bool = Bools[0];
 
 
@@ -275,18 +319,12 @@ var Pod = (function () {
 		return view._memory.bytes(view.type.sizeof);
 	};
 
-	/*Module.zeroFill = function (view) {
-		throw Error(); // XXX: Below implementation can write past view for Bool members.
-
-		var bytes = Module.rawBytes(view);
-		for (var i = 0; i < bytes.length; ++i) {
-			bytes[i] = 0;
-		}
-	};*/
-
 	Module.equals = function (ref1, ref2) {
 		if (ref1.type !== ref2.type) {
 			throw Error();
+		}
+		if (ref1.type._bitwiseCount() > 0) {
+			throw Error(); // TODO
 		}
 
 		var sizeof = ref1.type.sizeof;
@@ -306,8 +344,13 @@ var Pod = (function () {
 	};
 
 	Module.assign = function (dest, source) {
+		throw Error(); // XXX: Bitwise stuff
+
 		if (dest.type !== source.type) {
 			throw Error();
+		}
+		if (dest.type._bitwiseCount() > 0) {
+			throw Error(); // TODO
 		}
 
 		var sizeof = dest.type.sizeof;
@@ -331,11 +374,8 @@ var Pod = (function () {
 			this._memory = memory;
 		};
 
-		var type = new StructType(View, structInfo.sizeof);
-
 		var memberNames = Object.keys(structInfo);
 
-		View.prototype.type = type;
 		View.prototype.memberNames = memberNames;
 
 		for (var i = 0; i < memberNames.length; ++i) {
@@ -348,9 +388,16 @@ var Pod = (function () {
 				var member = structInfo[memberName];
 
 				if (member.type instanceof Type) {
-					View.prototype[memberName] = function () {
-						return member.type.view(this._memory.offsetBy(member.offset));
-					};
+					if (member instanceof BitwiseMember) {
+						View.prototype[memberName] = function () {
+							return member.type._bitwiseView(this._memory.offsetBy(member.byteOffset), member.bitOffset);
+						};
+					}
+					else {
+						View.prototype[memberName] = function () {
+							return member.type.view(this._memory.offsetBy(member.byteOffset));
+						};
+					}
 				}
 				else {
 					throw Error();
@@ -363,6 +410,9 @@ var Pod = (function () {
 		View.prototype.set = function (other) {
 			Module.assign(this, other);
 		};
+
+		var type = new StructType(View, structInfo.sizeof, structInfo.isBitwise);
+		View.prototype.type = type;
 
 		return type;
 	};
@@ -381,22 +431,19 @@ var Pod = (function () {
 			this._memory = memory;
 		};
 
-		var type = new ListType(View, elemType, compileTimeCount);
-
-		View.prototype.type = type;
 		View.prototype.length = compileTimeCount;
 
 		if (elemType.constructor === NativeType) {
 			View.prototype.at = function (index) {
-				var offset = elemType.sizeof * index;
-				var view = this._memory.view(offset);
+				var byteOffset = elemType.sizeof * index;
+				var view = this._memory.view(byteOffset);
 				return {
 					get: function () {
-						var offset = index * elemType.sizeof;
+						var byteOffset = index * elemType.sizeof;
 						return view[elemType._viewGet]();
 					},
 					set: function (value) {
-						var offset = index * elemType.sizeof;
+						var byteOffset = index * elemType.sizeof;
 						view[elemType._viewSet](value);
 					},
 				};
@@ -408,7 +455,7 @@ var Pod = (function () {
 				throw Error();
 			}
 			View.prototype.at = function (index) {
-				var offset = elemType.sizeof * index;
+				var byteOffset = elemType.sizeof * index;
 				var elemMemory = this._memory.offsetBy(index);
 				return elemType.view(elemMemory);
 			};
@@ -422,6 +469,9 @@ var Pod = (function () {
 		View.prototype.set = function (other) {
 			Module.assign(this, other);
 		};
+
+		var type = new ListType(View, elemType, compileTimeCount);
+		View.prototype.type = type;
 
 		return type;
 	};
