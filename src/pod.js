@@ -157,7 +157,7 @@ var Pod = (function () {
 	};
 
 	AggrogateType.prototype.view = function (memory) {
-		return new this._viewClass(memory);
+		return new this._viewClass(memory, 0);
 	};
 
 	AggrogateType.prototype.bitwiseEnabled = function () {
@@ -194,24 +194,16 @@ var Pod = (function () {
 	ListType.prototype.constructor = ListType;
 
 
-	var Member = function (byteOffset, type) {
-		this.byteOffset = byteOffset;
+	var Member = function (type) {
 		this.type = type;
 	};
-
-	var BitwiseMember = function (byteOffset, bitOffset, type) {
-		this.byteOffset = byteOffset;
-		this.bitOffset = bitOffset;
-		this.type = type;
-	};
-
 
 	var reservedMemberNames = {
 		"": null,
 		as: null,
 		bitwiseCount: null,
-		get: null,
 		bitwiseEnabled: null,
+		get: null,
 		memberNames: null,
 		set: null,
 		sizeof: null,
@@ -247,14 +239,16 @@ var Pod = (function () {
 			}
 
 			if (type instanceof ByteBoundaryType) {
+				throw Error(); // Probably need to make a proxy member type such as ByteBoundaryMember. (Should be idempotent.)
 				forceByteBoundary();
+				this.bitwiseEnabled = false;
 			}
 			else if (type.bitwiseEnabled()) {
 				if (type.sizeof < 0) {
 					throw Error();
 				}
 
-				this[memberName] = new BitwiseMember(byteOffset, bitOffset, type);
+				this[memberName] = new Member(type);
 
 				bitOffset += type.bitwiseCount();
 				byteOffset += Math.floor(bitOffset / 8);
@@ -266,10 +260,9 @@ var Pod = (function () {
 				}
 
 				forceByteBoundary();
-
 				this.bitwiseEnabled = false;
 
-				this[memberName] = new Member(byteOffset, type);
+				this[memberName] = new Member(type);
 				byteOffset += type.sizeof;
 			}
 		}
@@ -362,13 +355,27 @@ var Pod = (function () {
 	Module.defineStruct = function (namedTypes) {
 		var structInfo = new StructInfo(namedTypes);
 
-		var View = function (memory) {
+		var View = function (memory, bitOffset) {
+			if (bitOffset > 8) {
+				bitOffset -= 8;
+				memory = memory.offsetBy(1);
+			}
 			this._memory = memory;
+			this._bitOffset = bitOffset;
 		};
 
 		var memberNames = Object.keys(structInfo);
-
 		View.prototype.memberNames = memberNames;
+
+		var loopByteOffset = 0;
+		var loopBitOffset = 0;
+
+		var forceByteBoundary = function () {
+			if (loopBitOffset > 0) {
+				loopBitOffset = 0;
+				++loopByteOffset;
+			}
+		};
 
 		for (var i = 0; i < memberNames.length; ++i) {
 			var memberName = memberNames[i];
@@ -378,17 +385,37 @@ var Pod = (function () {
 
 			(function () {
 				var member = structInfo[memberName];
+				var localByteOffset;
+				var localBitOffset;
 
 				if (member.type instanceof Type) {
-					if (member instanceof BitwiseMember) {
+					if (member.type.bitwiseEnabled()) {
+						localByteOffset = loopByteOffset;
+						localBitOffset = loopBitOffset;
+
 						View.prototype[memberName] = function () {
-							return member.type.bitwiseView(member.bitOffset, this._memory.offsetBy(member.byteOffset));
+							var byteOffset = localByteOffset;
+							var bitOffset = this._bitOffset + localBitOffset;
+							return member.type.bitwiseView(bitOffset, this._memory.offsetBy(byteOffset));
 						};
+
+						loopByteOffset += member.type.sizeof;
+						loopBitOffset += member.type.bitwiseCount();
+						if (loopBitOffset >= 8) {
+							forceByteBoundary();
+						}
 					}
 					else {
+						forceByteBoundary();
+						localByteOffset = loopByteOffset;
+						localBitOffset = loopBitOffset;
+
 						View.prototype[memberName] = function () {
-							return member.type.view(this._memory.offsetBy(member.byteOffset));
+							var byteOffset = localByteOffset;
+							return member.type.view(this._memory.offsetBy(byteOffset));
 						};
+
+						loopByteOffset += member.type.sizeof;
 					}
 				}
 				else {
