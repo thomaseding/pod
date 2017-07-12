@@ -45,11 +45,11 @@ var Pod = (function () {
 		return new NamedType(name, this);
 	};
 
-	Type.prototype._isBitwise = function () {
+	Type.prototype.bitwiseEnabled = function () {
 		return false;
 	};
 
-	Type.prototype._bitwiseCount = function () {
+	Type.prototype.bitwiseCount = function () {
 		return 0;
 	};
 
@@ -61,7 +61,7 @@ var Pod = (function () {
 	ByteBoundaryType.prototype = new Type();
 	ByteBoundaryType.prototype.constructor = ByteBoundaryType;
 
-	ByteBoundartType.prototype.view = function () {
+	ByteBoundaryType.prototype.view = function () {
 		throw Error();
 	};
 
@@ -94,16 +94,19 @@ var Pod = (function () {
 	var BoolType = function (bitIndex) {
 		Type.call(this, 0);
 
-		this._bitwiseView = function (bitOffset, memory) {
+		this.bitwiseView = function (bitOffset, memory) {
 			var byteOffset = 0;
-			var effectiveBitIndex = bitIndex + bitOffset;
-			while (effectiveBitIndex >= 8) {
-				effectiveBitIndex -= 8;
+			bitOffset += bitIndex;
+			if (bitOffset >= 8) {
+				bitOffset -= 8;
 				++byteOffset;
+			}
+			if (bitOffset >= 8) {
+				throw Error(); // XXX: Remove when sufficiently debugged.
 			}
 
 			var view = memory.view(byteOffset);
-			var mask = 1 << effectiveBitIndex;
+			var mask = 1 << bitOffset;
 
 			return {
 				get: function () {
@@ -123,36 +126,39 @@ var Pod = (function () {
 		};
 
 		this.view = function (memory) {
-			return this._bitwiseView(0, memory);
+			return this.bitwiseView(0, memory);
 		}
 	};
 
 	BoolType.prototype = new Type();
 	BoolType.prototype.constructor = BoolType;
 	
-	BoolType.prototype._isBitwise = function () {
+	BoolType.prototype.bitwiseEnabled = function () {
 		return true;
 	};
 
-	BoolType.prototype._bitwiseCount = function () {
+	BoolType.prototype.bitwiseCount = function () {
 		return 1;
 	};
 
 
-	var AggrogateType = function (viewClass, sizeof, isBitwise, bitwiseCount) {
+	var AggrogateType = function (viewClass, sizeof, bitwiseEnabled, bitwiseCount) {
 		if (bitwiseCount >= 8) {
 			throw Error();
 		}
 		Type.call(this, sizeof);
 		this._viewClass = viewClass;
-		this._bitwise = isBitwise;
-		this._bitCount = bitwiseCount;
+		this._bitwiseEnabled = bitwiseEnabled;
+		this._bitwiseCount = bitwiseCount;
 	};
 
 	AggrogateType.prototype = new Type();
 	AggrogateType.prototype.constructor = AggrogateType;
 
-	AggrogateType.prototype._bitwiseView = function (bitOffset, memory) {
+	AggrogateType.prototype.bitwiseView = function (bitOffset, memory) {
+		if (bitOffset >= 8) {
+			throw Error(); // XXX: Remove when sufficiently debugged.
+		}
 		return new this._viewClass(memory, bitOffset);
 	};
 
@@ -160,20 +166,20 @@ var Pod = (function () {
 		return new this._viewClass(memory);
 	};
 
-	AggrogateType.prototype._isBitwise = function () {
-		return this._bitwise;
+	AggrogateType.prototype.bitwiseEnabled = function () {
+		return this._bitwiseEnabled;
 	};
 
-	AggrogateType.prototype._bitwiseCount = function () {
-		return this._bitCount;
+	AggrogateType.prototype.bitwiseCount = function () {
+		return this._bitwiseCount;
 	};
 	
 
-	var StructType = function (viewClass, sizeof, isBitwise, paddedBits) {
+	var StructType = function (viewClass, sizeof, bitwiseEnabled, paddedBits) {
 		if (sizeof <= 0) {
 			throw Error();
 		}
-		AggrogateType.call(this, viewClass, sizeof, isBitwise, paddedBits);
+		AggrogateType.call(this, viewClass, sizeof, bitwiseEnabled, paddedBits);
 	};
 
 	StructType.prototype = new AggrogateType();
@@ -181,13 +187,13 @@ var Pod = (function () {
 	
 
 	var ListType = function (viewClass, elemType, count) {
-		if (elemType.sizeof <= 0 || count <= 0 || elemType._bitwiseCount() > 0) {
+		if (elemType.sizeof <= 0 || count <= 0 || elemType.bitwiseCount() > 0) {
 			throw Error();
 		}
 		var sizeof = elemType.sizeof * count;
-		var isBitwise = count > 0 && elemType.isBitwise();
+		var bitwiseEnabled = count > 0 && elemType.bitwiseEnabled();
 		var bitwiseCount = xxx;
-		AggrogateType.call(this, viewClass, sizeof, isBitwise, bitwiseCount);
+		AggrogateType.call(this, viewClass, sizeof, bitwiseEnabled, bitwiseCount);
 	};
 
 	ListType.prototype = new AggrogateType();
@@ -221,7 +227,9 @@ var Pod = (function () {
 	var reservedMemberNames = {
 		"": null,
 		as: null,
+		bitwiseCount: null,
 		get: null,
+		bitwiseEnabled: null,
 		memberNames: null,
 		set: null,
 		sizeof: null,
@@ -234,7 +242,7 @@ var Pod = (function () {
 		var byteOffset = 0;
 		var bitOffset = 0;
 
-		this.isBitwise = true;
+		this.bitwiseEnabled = true;
 
 		var forceByteBoundary = function () {
 			if (bitOffset > 0) {
@@ -259,7 +267,7 @@ var Pod = (function () {
 			if (type instanceof ByteBoundaryType) {
 				forceByteBoundary();
 			}
-			else if (type._isBitwise()) {
+			else if (type.bitwiseEnabled()) {
 				if (type.sizeof < 0) {
 					throw Error();
 				}
@@ -269,7 +277,7 @@ var Pod = (function () {
 				}
 				this[memberName] = new BitwiseMember(byteOffset, bitOffset, type);
 
-				bitOffset += type._bitwiseCount();
+				bitOffset += type.bitwiseCount();
 				byteOffset += Math.floor(bitOffset / 8);
 				bitOffset = bitOffset % 8;
 			}
@@ -280,14 +288,14 @@ var Pod = (function () {
 
 				forceByteBoundary();
 
-				this.isBitwise = false;
+				this.bitwiseEnabled = false;
 
 				this[memberName] = new Member(byteOffset, type);
 				byteOffset += type.sizeof;
 			}
 		}
 
-		if (!this.isBitwise) {
+		if (!this.bitwiseEnabled) {
 			forceByteBoundary();
 		}
 
@@ -297,6 +305,10 @@ var Pod = (function () {
 
 
 	var Module = {};
+
+	Module.reservedMemberNames = function () {
+		return reservedMemberNames.slice(0);
+	};
 
 	Module.NamedType = NamedType;
 
@@ -326,7 +338,7 @@ var Pod = (function () {
 		if (ref1.type !== ref2.type) {
 			throw Error();
 		}
-		if (ref1.type._bitwiseCount() > 0) {
+		if (ref1.type.bitwiseCount() > 0) {
 			throw Error(); // TODO
 		}
 
@@ -347,12 +359,10 @@ var Pod = (function () {
 	};
 
 	Module.assign = function (dest, source) {
-		throw Error(); // XXX: Bitwise stuff
-
 		if (dest.type !== source.type) {
 			throw Error();
 		}
-		if (dest.type._bitwiseCount() > 0) {
+		if (dest.type.bitwiseCount() > 0) {
 			throw Error(); // TODO
 		}
 
@@ -393,7 +403,7 @@ var Pod = (function () {
 				if (member.type instanceof Type) {
 					if (member instanceof BitwiseMember) {
 						View.prototype[memberName] = function () {
-							return member.type._bitwiseView(this._memory.offsetBy(member.byteOffset), member.bitOffset);
+							return member.type.bitwiseView(member.bitOffset, this._memory.offsetBy(member.byteOffset));
 						};
 					}
 					else {
@@ -414,7 +424,7 @@ var Pod = (function () {
 			Module.assign(this, other);
 		};
 
-		var type = new StructType(View, structInfo.sizeof, structInfo.isBitwise, structInfo.bitwiseCount);
+		var type = new StructType(View, structInfo.sizeof, structInfo.bitwiseEnabled, structInfo.bitwiseCount);
 		View.prototype.type = type;
 
 		return type;
