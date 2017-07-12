@@ -289,7 +289,7 @@ var Pod = (function () {
 	};
 
 
-	Module.defineStruct = function (namedTypes) {
+	Module.defineStruct = function (namedTypes, set, get) {
 		var View = function (memory, bitOffset) {
 			if (bitOffset > 8) {
 				bitOffset -= 8;
@@ -378,11 +378,19 @@ var Pod = (function () {
 		var type = new StructType(View, sizeof, bitwiseEnabled, bitwiseCount);
 		View.prototype.type = type;
 
-		View.prototype.get = returnThis;
+		get = get || returnThis;
+		if (typeof get !== "function") {
+			throw Error();
+		}
+		View.prototype.get = get;
 
-		View.prototype.set = function (other) {
+		set = set || function (other) {
 			Module.assign(this, other);
 		};
+		if (typeof set !== "function") {
+			throw Error();
+		}
+		View.prototype.set = set;
 
 		return type;
 	};
