@@ -12,8 +12,8 @@ var Pod = (function () {
 		this._byteOffset = byteOffset;
 	};
 
-	AddressedMemory.prototype.bytes = function (sizeof) {
-		return new Uint8Array(this._buffer, this._byteOffset, this._byteOffset + sizeof);
+	AddressedMemory.prototype.bytes = function (byteCount) {
+		return new Uint8Array(this._buffer, this._byteOffset, this._byteOffset + byteCount);
 	};
 
 	AddressedMemory.prototype.view = function (byteOffset) {
@@ -21,7 +21,7 @@ var Pod = (function () {
 	};
 
 	AddressedMemory.prototype.offsetBy = function (byteOffset) {
-		return new AddressedMemory(buffer, this._byteOffset + byteOffset);
+		return new AddressedMemory(this._buffer, this._byteOffset + byteOffset);
 	};
 
 
@@ -31,11 +31,11 @@ var Pod = (function () {
 	};
 
 
-	var Type = function (sizeof) {
-		if (sizeof < 0) {
-			sizeof = -1;
+	var Type = function (byteCount) {
+		if (byteCount < 0) {
+			byteCount = -1;
 		}
-		this.sizeof = sizeof;
+		this.byteCount = byteCount;
 	};
 
 	Type.prototype.as = function (name) {
@@ -45,13 +45,16 @@ var Pod = (function () {
 		return new NamedType(name, this);
 	};
 
-	Type.prototype.bitwiseEnabled = function () {
-		return false;
+	Type.prototype.sizeof = function () {
+		if (this.byteCount < 0) {
+			throw Error();
+		}
+		return this.byteCount + (this.bitCount === 0 ? 0 : 1);
 	};
 
-	Type.prototype.bitwiseCount = function () {
-		return 0;
-	};
+	Type.prototype.bitwiseEnabled = false;
+
+	Type.prototype.bitCount = 0;
 
 
 	var ByteBoundaryType = function () {
@@ -66,8 +69,8 @@ var Pod = (function () {
 	};
 
 
-	var NativeType = function (name, sizeof) {
-		Type.call(this, sizeof);
+	var NativeType = function (name, byteCount) {
+		Type.call(this, byteCount);
 
 		this._viewGet = "get" + name;
 		this._viewSet = "set" + name;
@@ -113,7 +116,7 @@ var Pod = (function () {
 						bits |= mask;
 					}
 					else {
-						bits &= mask;
+						bits &= ~mask;
 					}
 					view.setUint8(0, bits);
 				},
@@ -128,23 +131,19 @@ var Pod = (function () {
 	BoolType.prototype = new Type();
 	BoolType.prototype.constructor = BoolType;
 	
-	BoolType.prototype.bitwiseEnabled = function () {
-		return true;
-	};
+	BoolType.prototype.bitwiseEnabled = true;
 
-	BoolType.prototype.bitwiseCount = function () {
-		return 1;
-	};
+	BoolType.prototype.bitCount = 1;
 
 
-	var AggrogateType = function (viewClass, sizeof, bitwiseEnabled, bitwiseCount) {
-		if (bitwiseCount >= 8) {
+	var AggrogateType = function (viewClass, byteCount, bitwiseEnabled, bitCount) {
+		if (bitCount >= 8) {
 			throw Error();
 		}
-		Type.call(this, sizeof);
+		Type.call(this, byteCount);
 		this._viewClass = viewClass;
-		this._bitwiseEnabled = bitwiseEnabled;
-		this._bitwiseCount = bitwiseCount;
+		this.bitwiseEnabled = bitwiseEnabled;
+		this.bitCount = bitCount;
 	};
 
 	AggrogateType.prototype = new Type();
@@ -161,20 +160,12 @@ var Pod = (function () {
 		return new this._viewClass(memory, 0);
 	};
 
-	AggrogateType.prototype.bitwiseEnabled = function () {
-		return this._bitwiseEnabled;
-	};
 
-	AggrogateType.prototype.bitwiseCount = function () {
-		return this._bitwiseCount;
-	};
-	
-
-	var StructType = function (viewClass, sizeof, bitwiseEnabled, paddedBits) {
-		if (sizeof <= 0) {
+	var StructType = function (viewClass, byteCount, bitwiseEnabled, paddedBits) {
+		if (byteCount < 0) {
 			throw Error();
 		}
-		AggrogateType.call(this, viewClass, sizeof, bitwiseEnabled, paddedBits);
+		AggrogateType.call(this, viewClass, byteCount, bitwiseEnabled, paddedBits);
 	};
 
 	StructType.prototype = new AggrogateType();
@@ -182,13 +173,13 @@ var Pod = (function () {
 	
 
 	var ListType = function (viewClass, elemType, count) {
-		if (elemType.sizeof <= 0 || count <= 0 || elemType.bitwiseCount() > 0) {
+		if (elemType.byteCount < 0 || count < 0 || elemType.bitCount > 0) {
 			throw Error();
 		}
-		var sizeof = elemType.sizeof * count;
-		var bitwiseEnabled = count > 0 && elemType.bitwiseEnabled();
-		var bitwiseCount = xxx;
-		AggrogateType.call(this, viewClass, sizeof, bitwiseEnabled, bitwiseCount);
+		var byteCount = elemType.byteCount * count;
+		var bitwiseEnabled = elemType.bitwiseEnabled;
+		var bitCount = xxx;
+		AggrogateType.call(this, viewClass, byteCount, bitwiseEnabled, bitCount);
 	};
 
 	ListType.prototype = new AggrogateType();
@@ -202,12 +193,12 @@ var Pod = (function () {
 	var reservedMemberNames = {
 		"": null,
 		as: null,
-		bitwiseCount: null,
+		bitCount: null,
 		bitwiseEnabled: null,
 		get: null,
 		memberNames: null,
 		set: null,
-		sizeof: null,
+		byteCount: null,
 		type: null,
 		view: null,
 	};
@@ -239,22 +230,29 @@ var Pod = (function () {
 	Module.Bool = new BoolType();
 
 
+	Module.allocate = function (type) {
+		var buffer = new ArrayBuffer(type.sizeof());
+		var memory = new AddressedMemory(buffer, 0);
+		return type.view(memory);
+	};
+
 	Module.rawBytes = function (view) {
-		return view._memory.bytes(view.type.sizeof);
+		var byteCount = view.type.byteCount;
+		if (view.type.bitCount > 0) {
+			++byteCount;
+		}
+		return view._memory.bytes(byteCount);
 	};
 
 	Module.equals = function (ref1, ref2) {
 		if (ref1.type !== ref2.type) {
 			throw Error();
 		}
-		if (ref1.type.bitwiseCount() > 0) {
+		if (ref1.type.bitCount > 0) {
 			throw Error(); // TODO
 		}
 
-		var sizeof = ref1.type.sizeof;
-		if (sizeof < 0) {
-			throw Error();
-		}
+		var sizeof = ref1.type.sizeof();
 
 		var bytes1 = this.rawBytes(ref1);
 		var bytes2 = this.rawBytes(ref2);
@@ -271,14 +269,11 @@ var Pod = (function () {
 		if (dest.type !== source.type) {
 			throw Error();
 		}
-		if (dest.type.bitwiseCount() > 0) {
+		if (dest.type.bitCount > 0) {
 			throw Error(); // TODO
 		}
 
-		var sizeof = dest.type.sizeof;
-		if (sizeof < 0) {
-			throw Error();
-		}
+		var sizeof = dest.type.sizeof();
 
 		var dBytes = this.rawBytes(dest);
 		var sBytes = this.rawBytes(source);
@@ -289,7 +284,7 @@ var Pod = (function () {
 	};
 
 
-	Module.defineStruct = function (namedTypes, set, get) {
+	Module.defineStruct = function (namedTypes, get, set) {
 		var View = function (memory, bitOffset) {
 			if (bitOffset > 8) {
 				bitOffset -= 8;
@@ -334,7 +329,7 @@ var Pod = (function () {
 						return;
 					}
 
-					if (type.bitwiseEnabled()) {
+					if (type.bitwiseEnabled) {
 						localByteOffset = loopByteOffset;
 						localBitOffset = loopBitOffset;
 
@@ -344,8 +339,8 @@ var Pod = (function () {
 							return type.bitwiseView(bitOffset, this._memory.offsetBy(byteOffset));
 						};
 
-						loopByteOffset += type.sizeof;
-						loopBitOffset += type.bitwiseCount();
+						loopByteOffset += type.byteCount;
+						loopBitOffset += type.bitCount;
 						if (loopBitOffset >= 8) {
 							forceByteBoundary();
 						}
@@ -361,7 +356,7 @@ var Pod = (function () {
 							return type.view(this._memory.offsetBy(byteOffset));
 						};
 
-						loopByteOffset += type.sizeof;
+						loopByteOffset += type.byteCount;
 					}
 				}
 				else {
@@ -373,9 +368,9 @@ var Pod = (function () {
 		if (!bitwiseEnabled) {
 			forceByteBoundary();
 		}
-		var sizeof = loopByteOffset;
-		var bitwiseCount = loopBitOffset;
-		var type = new StructType(View, sizeof, bitwiseEnabled, bitwiseCount);
+		var byteCount = loopByteOffset;
+		var bitCount = loopBitOffset;
+		var type = new StructType(View, byteCount, bitwiseEnabled, bitCount);
 		View.prototype.type = type;
 
 		get = get || returnThis;
@@ -413,15 +408,15 @@ var Pod = (function () {
 
 		if (elemType.constructor === NativeType) {
 			View.prototype.at = function (index) {
-				var byteOffset = elemType.sizeof * index;
+				var byteOffset = elemType.byteCount * index;
 				var view = this._memory.view(byteOffset);
 				return {
 					get: function () {
-						var byteOffset = index * elemType.sizeof;
+						var byteOffset = index * elemType.byteCount;
 						return view[elemType._viewGet]();
 					},
 					set: function (value) {
-						var byteOffset = index * elemType.sizeof;
+						var byteOffset = index * elemType.byteCount;
 						view[elemType._viewSet](value);
 					},
 				};
@@ -429,11 +424,11 @@ var Pod = (function () {
 
 		}
 		else if (elemType.constructor === StructType || elemType.constructor === ListType) {
-			if (elemType.sizeof < 0) {
+			if (elemType.byteCount < 0) {
 				throw Error();
 			}
 			View.prototype.at = function (index) {
-				var byteOffset = elemType.sizeof * index;
+				var byteOffset = elemType.byteCount * index;
 				var elemMemory = this._memory.offsetBy(index);
 				return elemType.view(elemMemory);
 			};

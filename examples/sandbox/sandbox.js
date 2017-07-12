@@ -1,4 +1,33 @@
 
+var Tristate = Pod.defineStruct([
+	Pod.Bool.as("value"),
+	Pod.Bool.as("exists"),
+], function () {
+	if (this.exists().get()) {
+		return this.value().get();
+	}
+	return null;
+}, function (value) {
+	this.exists().set(value !== null);
+	if (value !== null) {
+		this.value().set(value);
+	}
+});
+
+var tri = Pod.allocate(Tristate);
+console.log(tri.get());
+tri.set(true);
+console.log(tri.get());
+tri.set(false);
+console.log(tri.get());
+
+
+
+var Flags = Pod.defineStruct([
+	Tristate.as("x"),
+	Tristate.as("y"),
+]);
+
 
 var Node = Pod.defineStruct([
 	Pod.Uint8.as("asciiChar"),
@@ -26,11 +55,7 @@ var NodePair = Pod.defineStruct([
 ]);
 
 
-var buffer = new ArrayBuffer(NodePair.sizeof);
-var memory = new Pod.AddressedMemory(buffer, 0);
-
-
-var nodePair = NodePair.view(memory);
+var nodePair = Pod.allocate(NodePair);
 
 nodePair.first().asciiChar().set(1);
 console.log(nodePair.first().asciiChar().get());
