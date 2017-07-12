@@ -91,21 +91,15 @@ var Pod = (function () {
 	NativeType.prototype.constructor = NativeType;
 
 
-	var BoolType = function (bitIndex) {
+	var BoolType = function () {
 		Type.call(this, 0);
 
 		this.bitwiseView = function (bitOffset, memory) {
-			var byteOffset = 0;
-			bitOffset += bitIndex;
-			if (bitOffset >= 8) {
-				bitOffset -= 8;
-				++byteOffset;
-			}
 			if (bitOffset >= 8) {
 				throw Error(); // XXX: Remove when sufficiently debugged.
 			}
 
-			var view = memory.view(byteOffset);
+			var view = memory.view(0);
 			var mask = 1 << bitOffset;
 
 			return {
@@ -200,18 +194,6 @@ var Pod = (function () {
 	ListType.prototype.constructor = ListType;
 
 
-	var Bools = [
-		new BoolType(0),
-		new BoolType(1),
-		new BoolType(2),
-		new BoolType(3),
-		new BoolType(4),
-		new BoolType(5),
-		new BoolType(6),
-		new BoolType(7),
-	];
-
-
 	var Member = function (byteOffset, type) {
 		this.byteOffset = byteOffset;
 		this.type = type;
@@ -272,9 +254,6 @@ var Pod = (function () {
 					throw Error();
 				}
 
-				if (type instanceof BoolType) {
-					type = Bools[bitOffset];
-				}
 				this[memberName] = new BitwiseMember(byteOffset, bitOffset, type);
 
 				bitOffset += type.bitwiseCount();
@@ -327,7 +306,7 @@ var Pod = (function () {
 	Module.Float32 = new NativeType("Float32", 4);
 	Module.Float64 = new NativeType("Float64", 8);
 
-	Module.Bool = Bools[0];
+	Module.Bool = new BoolType();
 
 
 	Module.rawBytes = function (view) {
