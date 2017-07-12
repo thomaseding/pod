@@ -207,7 +207,7 @@ var Pod = (function () {
 
 	Module.AddressedMemory = AddressedMemory;
 
-	Module.ByteBoundary = new NamedType("*", new ByteBoundaryType());
+	Module.ByteBoundary = new NamedType(null, new ByteBoundaryType());
 
 	Module.Int8 = new NativeType("Int8", 1);
 	Module.Int16 = new NativeType("Int16", 2);
