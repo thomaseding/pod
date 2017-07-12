@@ -100,6 +100,7 @@ var Pod = (function () {
 			}
 
 			var view = memory.view(0);
+			//var mask = 1 << (7 - bitOffset);
 			var mask = 1 << bitOffset;
 
 			return {
@@ -327,6 +328,12 @@ var Pod = (function () {
 				var localBitOffset;
 
 				if (type instanceof Type) {
+					if (type instanceof ByteBoundaryType) {
+						bitwiseEnabled = false;
+						forceByteBoundary();
+						return;
+					}
+
 					if (type.bitwiseEnabled()) {
 						localByteOffset = loopByteOffset;
 						localBitOffset = loopBitOffset;
@@ -344,6 +351,7 @@ var Pod = (function () {
 						}
 					}
 					else {
+						bitwiseEnabled = false;
 						forceByteBoundary();
 						localByteOffset = loopByteOffset;
 						localBitOffset = loopBitOffset;

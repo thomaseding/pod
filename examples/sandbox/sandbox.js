@@ -11,8 +11,12 @@ var Node = Pod.defineStruct([
 	Pod.Bool.as("bool3"),
 	Pod.Bool.as("bool4"),
 	Pod.Bool.as("bool5"),
+
+	Pod.ByteBoundary,
 	Pod.Bool.as("bool6"),
 	Pod.Bool.as("bool7"),
+
+	Pod.ByteBoundary,
 	Pod.Bool.as("bool8"),
 ]);
 
@@ -37,9 +41,9 @@ console.log(nodePair.first().asciiChar().get());
 
 var node = nodePair.first();
 
-console.log(node.bool6().get());
-node.bool6().set(true);
-console.log(node.bool6().get());
+console.log(node.bool1().get());
+node.bool1().set(true);
+console.log(node.bool1().get());
 
 console.log(node.bool8().get());
 node.bool8().set(true);
