@@ -246,6 +246,12 @@ var Pod = (function () {
 		if (ref1.type.bitCount > 0) {
 			throw Error(); // TODO
 		}
+		if (ref1._bitOffset !== undefined && ref1._bitOffset > 0) {
+			throw Error(); // TODO
+		}
+		if (ref2._bitOffset !== undefined && ref2._bitOffset > 0) {
+			throw Error(); // TODO
+		}
 
 		var sizeof = ref1.type.sizeof();
 
@@ -265,6 +271,12 @@ var Pod = (function () {
 			throw Error();
 		}
 		if (dest.type.bitCount > 0) {
+			throw Error(); // TODO
+		}
+		if (ref1._bitOffset !== undefined && ref1._bitOffset > 0) {
+			throw Error(); // TODO
+		}
+		if (ref2._bitOffset !== undefined && ref2._bitOffset > 0) {
 			throw Error(); // TODO
 		}
 
