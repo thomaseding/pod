@@ -160,11 +160,11 @@ var Pod = (function () {
 	};
 
 
-	var StructType = function (viewClass, byteCount, bitwiseEnabled, paddedBits) {
+	var StructType = function (viewClass, byteCount, bitwiseEnabled, bitCount) {
 		if (byteCount < 0) {
 			throw Error();
 		}
-		AggrogateType.call(this, viewClass, byteCount, bitwiseEnabled, paddedBits);
+		AggrogateType.call(this, viewClass, byteCount, bitwiseEnabled, bitCount);
 	};
 
 	StructType.prototype = new AggrogateType();
@@ -190,6 +190,8 @@ var Pod = (function () {
 	};
 
 	var reservedMemberNames = {
+		_bitOffset: null,
+		_memory: null,
 		get: null,
 		members: null,
 		set: null,
@@ -279,9 +281,12 @@ var Pod = (function () {
 
 	Module.defineStruct = function (namedTypes, get, set) {
 		var View = function (memory, bitOffset) {
-			if (bitOffset > 8) {
+			if (bitOffset >= 8) {
 				bitOffset -= 8;
 				memory = memory.offsetBy(1);
+			}
+			if (bitOffset >= 8) {
+				throw Error(); // XXX: Remove when sufficiently debugged.
 			}
 			this._memory = memory;
 			this._bitOffset = bitOffset;
@@ -294,7 +299,16 @@ var Pod = (function () {
 		var loopByteOffset = 0;
 		var loopBitOffset = 0;
 
+		var convertBits = function () {
+			var byteCount = Math.floor(loopBitOffset / 8);
+			loopBitOffset -= 8 * byteCount;
+			loopByteOffset += byteCount;
+		};
+
 		var forceByteBoundary = function () {
+			if (loopBitOffset >= 8) {
+				throw Error(); // XXX: Remove when sufficiently debugged.
+			}
 			if (loopBitOffset > 0) {
 				loopBitOffset = 0;
 				++loopByteOffset;
@@ -319,32 +333,36 @@ var Pod = (function () {
 					if (type instanceof ByteBoundaryType) {
 						bitwiseEnabled = false;
 						forceByteBoundary();
-						return;
 					}
-
-					if (type.bitwiseEnabled) {
+					else if (type.bitwiseEnabled) {
 						localByteOffset = loopByteOffset;
 						localBitOffset = loopBitOffset;
 
 						View.prototype[memberName] = function () {
 							var byteOffset = localByteOffset;
 							var bitOffset = this._bitOffset + localBitOffset;
+							if (bitOffset >= 8) {
+								bitOffset -= 8;
+								++byteOffset;
+							}
 							return type.bitwiseView(bitOffset, this._memory.offsetBy(byteOffset));
 						};
 
 						loopByteOffset += type.byteCount;
 						loopBitOffset += type.bitCount;
-						if (loopBitOffset >= 8) {
-							forceByteBoundary();
-						}
+						convertBits();
 					}
 					else {
 						bitwiseEnabled = false;
 						forceByteBoundary();
+
 						localByteOffset = loopByteOffset;
 						localBitOffset = loopBitOffset;
 
 						View.prototype[memberName] = function () {
+							if (localBitOffset > 0 || this._bitOffset > 0) {
+								throw Error(); // XXX: Remove when sufficiently debugged.
+							}
 							var byteOffset = localByteOffset;
 							return type.view(this._memory.offsetBy(byteOffset));
 						};
