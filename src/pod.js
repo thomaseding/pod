@@ -311,12 +311,6 @@ var Pod = (function () {
 		var loopByteOffset = 0;
 		var loopBitOffset = 0;
 
-		var convertBits = function () {
-			var byteCount = Math.floor(loopBitOffset / 8);
-			loopBitOffset -= 8 * byteCount;
-			loopByteOffset += byteCount;
-		};
-
 		var forceByteBoundary = function () {
 			if (loopBitOffset >= 8) {
 				throw Error(); // XXX: Remove when sufficiently debugged.
@@ -362,7 +356,9 @@ var Pod = (function () {
 
 						loopByteOffset += type.byteCount;
 						loopBitOffset += type.bitCount;
-						convertBits();
+						var byteCount = Math.floor(loopBitOffset / 8);
+						loopBitOffset -= 8 * byteCount;
+						loopByteOffset += byteCount;
 					}
 					else {
 						bitwiseEnabled = false;
