@@ -9,42 +9,28 @@ declare module Pod {
 		offsetBy(byteOffset: number): AddressedMemory;
 	}
 
-	interface View {}
-
-	interface TypedView<_Value> extends View {
-		get(): _Value;
-		set(value: _Value): void;
+	interface View<$Value> {
+		get(): $Value;
+		set(value: $Value): void;
 	}
-
-	type NumberView = TypedView<number>;
-	type BoolView = TypedView<boolean>;
 
 	interface NamedType { }
 
-	interface Type {
+	interface Type<$View> {
 		as(memberName: string): NamedType;
-		view(memory: AddressedMemory): View;
+		view(memory: AddressedMemory): $View;
 		sizeof(): number;
 		byteCount: number;
 		bitCount: number;
 		bitwiseEnabled: boolean;
 	}
 
-	interface BitwiseType extends Type {
-		bitwiseView(bitOffset: number, memory: AddressedMemory): View;
+	interface BitwiseType<$View> extends Type<$View> {
+		bitwiseView(bitOffset: number, memory: AddressedMemory): $View;
 	}
 
-	interface TypedType<_View> extends Type {
-		view(memory: AddressedMemory): _View;
-	}
-
-	interface TypedBitwiseType<_BitwiseView> extends BitwiseType {
-		view(memory: AddressedMemory): _BitwiseView;
-		bitwiseView(bitOffset: number, memory: AddressedMemory): _BitwiseView;
-	}
-
-	type NumberType = TypedType<NumberView>;
-	type BoolType = TypedBitwiseType<BoolView>;
+	type NumberType = Type<View<number>>;
+	type BoolType = BitwiseType<View<boolean>>;
 
 	var ByteBoundary: NamedType;
 
@@ -63,23 +49,19 @@ declare module Pod {
 
 	function reservedMemberNames(): string[];
 
-	function allocate(type: Type): View;
+	function allocate<$View>(type: Type<$View>): $View;
 
-	function allocate(type: NumberType): NumberView;
+	function rawBytes(view: View<any>): Uint8Array;
 
-	function allocate(type: BoolType): BoolView;
+	function equals<$Value>(x: View<$Value>, y: View<$Value>): boolean;
 
-	function rawBytes(view: View);
+	function assign<$Value>(dest: View<$Value>, source: View<$Value>);
 
-	function equals(x: View, y: View);
+	function defineStruct(namedTypes: NamedType[]): Type<any>;
+	function defineStruct(namedTypes: NamedType[], get: () => any): Type<any>;
+	function defineStruct(namedTypes: NamedType[], get: () => any, set: (value: any) => void): Type<any>;
 
-	function assign(dest: View, source: View);
-
-	function defineStruct(namedTypes: NamedType[]): Type;
-	function defineStruct(namedTypes: NamedType[], get: () => any): Type;
-	function defineStruct(namedTypes: NamedType[], get: () => any, set: (value: any) => void): Type;
-
-	function defineList(elemType: Type, compileTimeCount: number): Type;
+	function defineList<$View>(elemType: Type<$View>, compileTimeCount: number): Type<any>;
 }
 
 
