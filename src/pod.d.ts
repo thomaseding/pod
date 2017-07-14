@@ -37,15 +37,22 @@ declare module Pod {
 	var Int8: NumberType;
 	var Int16: NumberType;
 	var Int32: NumberType;
-
 	var Uint8: NumberType;
 	var Uint16: NumberType;
 	var Uint32: NumberType;
-
 	var Float32: NumberType;
 	var Float64: NumberType;
-
 	var Bool: BoolType;
+
+	type View_Int8 = View<number>;
+	type View_Int16 = View<number>;
+	type View_Int32 = View<number>;
+	type View_Uint8 = View<number>;
+	type View_Uint16 = View<number>;
+	type View_Uint32 = View<number>;
+	type View_Float32 = View<number>;
+	type View_Float64 = View<number>;
+	type View_Bool = View<boolean>;
 
 	function reservedMemberNames(): string[];
 
