@@ -56,8 +56,8 @@ var Pod = (function () {
 
 	Type.prototype.bitCount = 0;
 
-	Type.prototype.newtype = function (name, get, set) {
-		return Pod.defineStruct([this.as(name)], get, set);
+	Type.prototype.newtype = function (name, get, set, zero) {
+		return Pod.defineStruct([this.as(name)], get, set, zero);
 	};
 
 
@@ -89,6 +89,9 @@ var Pod = (function () {
 				},
 				set: function (value) {
 					view[type._viewSet](0, value);
+				},
+				zero: function () {
+					this.set(0);
 				},
 			};
 		};
@@ -122,6 +125,9 @@ var Pod = (function () {
 						bits &= ~mask;
 					}
 					view.setUint8(0, bits);
+				},
+				zero: function () {
+					this.set(false);
 				},
 			};
 		};
@@ -173,7 +179,7 @@ var Pod = (function () {
 
 	StructType.prototype = new AggrogateType();
 	StructType.prototype.constructor = StructType;
-	
+
 
 	var ListType = function (viewClass, elemType, count) {
 		if (elemType.byteCount < 0 || count < 0 || elemType.bitCount > 0) {
@@ -200,6 +206,7 @@ var Pod = (function () {
 		members: null,
 		set: null,
 		type: null,
+		zero: null,
 	};
 
 
@@ -295,7 +302,7 @@ var Pod = (function () {
 	};
 
 
-	Module.defineStruct = function (namedTypes, get, set) {
+	Module.defineStruct = function (namedTypes, get, set, zero) {
 		var View = function (memory, bitOffset) {
 			if (bitOffset >= 8) {
 				bitOffset -= 8;
@@ -410,6 +417,18 @@ var Pod = (function () {
 		}
 		View.prototype.set = set;
 
+		zero = zero || function (other) {
+			for (var i = 0; i < this.members.length; ++i) {
+				var memberName = members[i];
+				var view = this[member]();
+				view.zero();
+			}
+		};
+		if (typeof zero !== "function") {
+			throw Error();
+		}
+		View.prototype.zero = zero;
+
 		return type;
 	};
 
@@ -460,14 +479,21 @@ var Pod = (function () {
 			throw Error();
 		}
 
+		var type = new ListType(View, elemType, compileTimeCount);
+		View.prototype.type = type;
+
 		View.prototype.get = returnThis;
 
 		View.prototype.set = function (other) {
 			Module.assign(this, other);
 		};
 
-		var type = new ListType(View, elemType, compileTimeCount);
-		View.prototype.type = type;
+		View.prototype.zero = function () {
+			for (var i = 0; i < this.length; ++i) {
+				var view = this.at(i);
+				view.zero();
+			}
+		};
 
 		return type;
 	};
