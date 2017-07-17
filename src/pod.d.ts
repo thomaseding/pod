@@ -19,6 +19,10 @@ declare module Pod {
 	interface Type<$View> {
 		as(memberName: string): NamedType;
 		view(memory: AddressedMemory): $View;
+		newtype(name: string): Type<any>;
+		newtype<$Value>(get: () => $Value): Type<View<$Value>>;
+		newtype<$Value>(get: () => $Value, set: (value: $Value) => void): Type<View<$Value>>;
+		newtype<$Value>(get: () => $Value, set: (value: $Value) => void, zero: () => void): Type<View<$Value>>;
 		sizeof(): number;
 		byteCount: number;
 		bitCount: number;
@@ -62,11 +66,12 @@ declare module Pod {
 
 	function equals<$Value>(x: View<$Value>, y: View<$Value>): boolean;
 
-	function assign<$Value>(dest: View<$Value>, source: View<$Value>);
+	function assign<$Value>(dest: View<$Value>, source: View<$Value>): void;
 
 	function defineStruct(namedTypes: NamedType[]): Type<any>;
-	function defineStruct(namedTypes: NamedType[], get: () => any): Type<any>;
-	function defineStruct(namedTypes: NamedType[], get: () => any, set: (value: any) => void): Type<any>;
+	function defineStruct<$Value>(namedTypes: NamedType[], get: () => $Value): Type<View<$Value>>;
+	function defineStruct<$Value>(namedTypes: NamedType[], get: () => $Value, set: (value: $Value) => void): Type<View<$Value>>;
+	function defineStruct<$Value>(namedTypes: NamedType[], get: () => $Value, set: (value: $Value) => void, zero: () => void): Type<View<$Value>>;
 
 	function defineList<$View>(elemType: Type<$View>, compileTimeCount: number): Type<any>;
 }

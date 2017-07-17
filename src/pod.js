@@ -56,8 +56,8 @@ var Pod = (function () {
 
 	Type.prototype.bitCount = 0;
 
-	Type.prototype.newtype = function (name, get, set, zero) {
-		return Pod.defineStruct([this.as(name)], get, set, zero);
+	Type.prototype.newtype = function (get, set, zero) {
+		return Pod.defineStruct([this.as("base")], get, set, zero);
 	};
 
 
