@@ -417,7 +417,7 @@ var Pod = (function () {
 		}
 		View.prototype.set = set;
 
-		zero = zero || function (other) {
+		zero = zero || function () {
 			for (var i = 0; i < this.members.length; ++i) {
 				var memberName = members[i];
 				var view = this[member]();
