@@ -56,6 +56,10 @@ var Pod = (function () {
 
 	Type.prototype.bitCount = 0;
 
+	Type.prototype.newtype = function (name, get, set) {
+		return Pod.defineStruct([this.as(name)], get, set);
+	};
+
 
 	var ByteBoundaryType = function () {
 		Type.call(this, -1);
