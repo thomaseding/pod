@@ -1,5 +1,3 @@
-
-
 declare module Pod {
 	class AddressedMemory {
 		constructor(buffer: ArrayBuffer, offset: number);
@@ -12,6 +10,7 @@ declare module Pod {
 	interface View<$Value> {
 		get(): $Value;
 		set(value: $Value): void;
+		zero(): void;
 	}
 
 	interface NamedType { }
@@ -75,5 +74,3 @@ declare module Pod {
 
 	function defineList<$View>(elemType: Type<$View>, compileTimeCount: number): Type<any>;
 }
-
-
