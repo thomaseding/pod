@@ -419,8 +419,8 @@ var Pod = (function () {
 
 		zero = zero || function () {
 			for (var i = 0; i < this.members.length; ++i) {
-				var memberName = members[i];
-				var view = this[member]();
+				var memberName = this.members[i];
+				var view = this[memberName]();
 				view.zero();
 			}
 		};
