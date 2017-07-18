@@ -1,3 +1,24 @@
+var NullableKey = Pod.Uint32.newtype(function () {
+	var value = this.base().get();
+	if (value === 0xFFFFFFFF) {
+		return null;
+	}
+	return value;
+}, function (value) {
+	if (value === null) {
+		value = 0xFFFFFFFF;
+	}
+	this.base().set(value);
+}, function () {
+	this.base().set(0xFFFFFFFF);
+});
+
+var key = Pod.allocate(NullableKey);
+key.zero();
+console.log(Pod.rawBytes(key));
+
+
+
 
 var Tristate = Pod.defineStruct([
 	Pod.Bool.as("value"),
